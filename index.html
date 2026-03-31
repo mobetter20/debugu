@@ -1,0 +1,804 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>debug::u</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Crimson+Pro:ital,wght@0,300;0,400;0,500;1,300;1,400&display=swap');
+
+  :root {
+    --phosphor: #4aea8b;
+    --phosphor-dim: rgba(74,234,139,0.08);
+    --phosphor-mid: rgba(74,234,139,0.2);
+    --phosphor-glow: rgba(74,234,139,0.4);
+    --phosphor-bright: #7dffa8;
+    --amber: #f0c050;
+    --amber-dim: rgba(240,192,80,0.1);
+    --amber-mid: rgba(240,192,80,0.25);
+    --red-signal: #ff6b6b;
+    --red-dim: rgba(255,107,107,0.1);
+    --red-mid: rgba(255,107,107,0.25);
+    --cyan: #50d0e0;
+    --cyan-dim: rgba(80,208,224,0.1);
+    --bg: #0a0e0a;
+    --bg-panel: #0d120d;
+    --bg-input: #080b08;
+    --text: #a0b8a0;
+    --text-dim: #506050;
+    --text-bright: #d0e8d0;
+    --border: rgba(74,234,139,0.08);
+    --border-active: rgba(74,234,139,0.25);
+    --scanline: rgba(0,0,0,0.12);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'IBM Plex Mono', monospace;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: repeating-linear-gradient(0deg, transparent, transparent 2px, var(--scanline) 2px, var(--scanline) 4px);
+    pointer-events: none;
+    z-index: 1000;
+    opacity: 0.3;
+  }
+
+  body::after {
+    content: '';
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: radial-gradient(ellipse at center, transparent 50%, rgba(0,0,0,0.5) 100%);
+    pointer-events: none;
+    z-index: 999;
+  }
+
+  .app {
+    max-width: 560px;
+    margin: 0 auto;
+    padding: 20px 20px 120px;
+    position: relative;
+    z-index: 1;
+  }
+
+  .header {
+    padding: 40px 0 12px;
+    margin-bottom: 36px;
+    border-bottom: 1px solid var(--border);
+    opacity: 0;
+    animation: bootUp 1s ease forwards;
+  }
+
+  .logo-row { display: flex; align-items: baseline; gap: 12px; margin-bottom: 8px; }
+
+  .logo {
+    font-size: 22px; font-weight: 500; color: var(--phosphor);
+    letter-spacing: 2px;
+    text-shadow: 0 0 20px var(--phosphor-glow), 0 0 40px var(--phosphor-dim);
+  }
+
+  .logo-ver { font-size: 11px; color: var(--text-dim); letter-spacing: 1px; }
+
+  .tagline {
+    font-family: 'Crimson Pro', serif; font-size: 14px; font-style: italic;
+    color: var(--text-dim); font-weight: 300; letter-spacing: 0.5px;
+  }
+
+  .boot-msg {
+    font-size: 10px; color: var(--text-dim); margin-top: 10px; letter-spacing: 0.5px;
+    opacity: 0; animation: fadeIn 0.6s ease 0.8s forwards;
+  }
+
+  .concept-note {
+    font-family: 'Crimson Pro', serif; font-size: 13px; font-style: italic;
+    color: var(--text-dim); padding: 12px 16px; border-left: 2px solid var(--border);
+    margin: 16px 0 20px; line-height: 1.6;
+  }
+  .concept-note strong { color: var(--text); font-weight: 500; font-style: normal; }
+
+  .screen { display: none; }
+  .screen.active { display: block; }
+
+  /* Input screen */
+  .input-area { opacity: 0; animation: fadeIn 0.6s ease 0.5s forwards; }
+  .prompt { font-size: 15px; color: var(--text-bright); margin-bottom: 4px; font-weight: 400; }
+  .prompt-sub { font-size: 12px; color: var(--text-dim); margin-bottom: 16px; }
+
+  .raw-textarea {
+    width: 100%; min-height: 80px; background: var(--bg-input);
+    border: 1px solid var(--border); border-radius: 2px;
+    color: var(--phosphor-bright); font-family: 'IBM Plex Mono', monospace;
+    font-size: 14px; padding: 14px; resize: none; outline: none;
+    transition: border-color 0.3s, box-shadow 0.3s; line-height: 1.6;
+    caret-color: var(--phosphor);
+  }
+  .raw-textarea::placeholder { color: var(--text-dim); font-style: italic; font-family: 'Crimson Pro', serif; }
+  .raw-textarea:focus { border-color: var(--border-active); box-shadow: 0 0 12px var(--phosphor-dim), inset 0 0 12px var(--phosphor-dim); }
+
+  .quick-fills { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0 6px; }
+
+  .qf {
+    font-family: 'IBM Plex Mono', monospace; font-size: 11px;
+    padding: 5px 10px; background: transparent; border: 1px solid var(--border);
+    border-radius: 2px; color: var(--text-dim); cursor: pointer;
+    transition: all 0.2s; letter-spacing: 0.3px; user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .qf:hover { border-color: var(--border-active); color: var(--phosphor); background: var(--phosphor-dim); }
+  .qf.active {
+    border-color: var(--phosphor-mid); color: var(--phosphor);
+    background: var(--phosphor-dim); box-shadow: 0 0 6px var(--phosphor-dim);
+  }
+
+  .qf-hint {
+    font-size: 11px; color: var(--text-dim); margin: 6px 0 20px;
+    font-family: 'Crimson Pro', serif; font-style: italic;
+  }
+
+  .btn-run {
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    width: 100%; padding: 14px; background: transparent; color: var(--phosphor);
+    font-family: 'IBM Plex Mono', monospace; font-size: 13px; font-weight: 500;
+    letter-spacing: 1px; border: 1px solid var(--phosphor-mid); border-radius: 2px;
+    cursor: pointer; transition: all 0.25s; text-transform: uppercase;
+  }
+  .btn-run:hover:not(:disabled) {
+    background: var(--phosphor-dim);
+    box-shadow: 0 0 20px var(--phosphor-dim), inset 0 0 20px var(--phosphor-dim);
+    border-color: var(--phosphor-glow);
+  }
+  .btn-run:disabled { opacity: 0.2; cursor: not-allowed; }
+
+  .btn-secondary {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 10px 18px; background: transparent; color: var(--text-dim);
+    font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.5px;
+    border: 1px solid var(--border); border-radius: 2px; cursor: pointer; transition: all 0.2s;
+  }
+  .btn-secondary:hover { color: var(--text); border-color: var(--border-active); }
+
+  /* Triage */
+  .triage-group { margin-bottom: 26px; }
+  .triage-header { display: flex; align-items: baseline; gap: 10px; margin-bottom: 10px; }
+  .triage-label { font-size: 11px; font-weight: 500; letter-spacing: 1.5px; text-transform: uppercase; color: var(--phosphor); }
+  .triage-hint { font-family: 'Crimson Pro', serif; font-size: 12px; font-style: italic; color: var(--text-dim); font-weight: 300; }
+  .triage-options { display: flex; flex-wrap: wrap; gap: 7px; }
+
+  .tc {
+    font-family: 'IBM Plex Mono', monospace; font-size: 12px; padding: 8px 14px;
+    background: var(--bg-panel); border: 1px solid var(--border); border-radius: 2px;
+    color: var(--text); cursor: pointer; transition: all 0.2s; user-select: none;
+    -webkit-tap-highlight-color: transparent; letter-spacing: 0.3px;
+  }
+  .tc:hover { border-color: var(--border-active); background: var(--phosphor-dim); }
+  .tc.sel-on { border-color: var(--phosphor-mid); color: var(--phosphor); background: var(--phosphor-dim); box-shadow: 0 0 8px var(--phosphor-dim); }
+  .tc.sel-warn { border-color: var(--amber-mid); color: var(--amber); background: var(--amber-dim); box-shadow: 0 0 8px var(--amber-dim); }
+  .tc.sel-alert { border-color: var(--red-mid); color: var(--red-signal); background: var(--red-dim); box-shadow: 0 0 8px var(--red-dim); }
+
+  .triage-footer { margin-top: 8px; }
+  .skip-note { font-family: 'Crimson Pro', serif; font-size: 12px; font-style: italic; color: var(--text-dim); text-align: center; margin-bottom: 14px; }
+
+  /* Loading */
+  .loading-screen { padding: 80px 20px; text-align: center; }
+  .pulse-ring {
+    width: 48px; height: 48px; border: 1px solid var(--phosphor-mid);
+    border-radius: 50%; margin: 0 auto 24px; animation: pulseRing 1.5s ease infinite;
+    position: relative;
+  }
+  .pulse-ring::after {
+    content: ''; position: absolute; top: 50%; left: 50%;
+    width: 8px; height: 8px; background: var(--phosphor); border-radius: 50%;
+    transform: translate(-50%, -50%); box-shadow: 0 0 10px var(--phosphor-glow);
+  }
+  .loading-log { text-align: left; max-width: 320px; margin: 0 auto; }
+  .log-line { font-size: 11px; color: var(--text-dim); margin-bottom: 4px; opacity: 0; letter-spacing: 0.3px; }
+  .log-line.vis { animation: fadeIn 0.3s ease forwards; }
+  .log-line .ok { color: var(--phosphor); }
+
+  /* Results */
+  .results-area { opacity: 0; animation: fadeIn 0.6s ease forwards; }
+  .result-block { margin-bottom: 28px; }
+  .block-header {
+    font-size: 10px; font-weight: 500; letter-spacing: 2px; text-transform: uppercase;
+    margin-bottom: 12px; display: flex; align-items: center; gap: 8px;
+  }
+  .block-header::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+  .bh-red { color: var(--red-signal); }
+  .bh-green { color: var(--phosphor); }
+  .bh-amber { color: var(--amber); }
+  .bh-cyan { color: var(--cyan); }
+
+  .compiled-box {
+    background: var(--bg-panel); border: 1px solid var(--red-mid); border-radius: 2px;
+    padding: 16px 18px;
+  }
+  .compiled-raw { font-size: 14px; color: var(--red-signal); line-height: 1.6; font-style: italic; font-family: 'Crimson Pro', serif; }
+  .compiled-meta { font-size: 11px; color: var(--text-dim); margin-top: 8px; }
+
+  .arrow-sep { text-align: center; padding: 16px 0; font-size: 11px; letter-spacing: 3px; color: var(--text-dim); }
+
+  .comp-card {
+    background: var(--bg-panel); border: 1px solid var(--border);
+    border-left: 3px solid var(--phosphor-mid); border-radius: 2px;
+    padding: 14px 16px; margin-bottom: 8px;
+  }
+  .comp-card.high { border-left-color: var(--red-signal); }
+  .comp-card.mid { border-left-color: var(--amber); }
+  .comp-card.low { border-left-color: var(--phosphor); }
+
+  .comp-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+  .comp-type { font-size: 11px; font-weight: 500; letter-spacing: 1px; text-transform: uppercase; }
+  .comp-type.high { color: var(--red-signal); }
+  .comp-type.mid { color: var(--amber); }
+  .comp-type.low { color: var(--phosphor); }
+  .comp-impact { font-size: 10px; color: var(--text-dim); letter-spacing: 0.5px; padding: 2px 8px; border: 1px solid var(--border); border-radius: 2px; }
+  .comp-desc { font-family: 'Crimson Pro', serif; font-size: 14px; color: var(--text-bright); line-height: 1.6; font-weight: 300; }
+  .comp-theory { font-size: 11px; color: var(--text-dim); margin-top: 6px; font-style: italic; font-family: 'Crimson Pro', serif; line-height: 1.5; }
+
+  .reframe-box { background: var(--bg-panel); border: 1px solid var(--cyan-dim); border-radius: 2px; padding: 18px; }
+  .reframe-text { font-family: 'Crimson Pro', serif; font-size: 15px; color: var(--text-bright); line-height: 1.7; font-weight: 300; }
+  .reframe-text strong { color: var(--cyan); font-weight: 500; }
+
+  .action-box { background: var(--phosphor-dim); border: 1px solid var(--phosphor-mid); border-radius: 2px; padding: 18px; }
+  .action-text { font-family: 'Crimson Pro', serif; font-size: 15px; color: var(--text-bright); line-height: 1.7; font-weight: 300; }
+
+  .system-note { margin-top: 28px; padding: 16px; border: 1px solid var(--border); border-radius: 2px; }
+  .system-note-title { font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--text-dim); margin-bottom: 8px; }
+  .system-note-body { font-family: 'Crimson Pro', serif; font-size: 13px; color: var(--text-dim); line-height: 1.6; font-style: italic; }
+  .system-note-body em { color: var(--text); font-style: normal; }
+
+  .restart-area { text-align: center; margin-top: 32px; }
+
+  @keyframes bootUp { 0% { opacity:0; filter:brightness(3); } 30% { opacity:1; filter:brightness(1.5); } 100% { opacity:1; filter:brightness(1); } }
+  @keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
+  @keyframes pulseRing { 0%,100% { transform:scale(0.9); opacity:0.5; } 50% { transform:scale(1.1); opacity:1; } }
+
+  @media (max-width: 480px) {
+    .app { padding: 12px 14px 100px; }
+    .tc { font-size: 11px; padding: 7px 11px; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="header">
+    <div class="logo-row">
+      <div class="logo">debug::u</div>
+      <div class="logo-ver">v0.3</div>
+    </div>
+    <div class="tagline">your biological computer's diagnostic console</div>
+    <div class="boot-msg">// you are not your compiled output. you are the system producing it.</div>
+  </div>
+
+  <!-- SCREEN 1 -->
+  <div class="screen active" id="s-input">
+    <div class="input-area">
+      <div class="prompt">> dump current state</div>
+      <div class="prompt-sub">type it raw, or tap what fits. messy is fine.</div>
+      <textarea class="raw-textarea" id="raw-input" placeholder="i feel terrible and everything is wrong..." rows="3"></textarea>
+      <div class="quick-fills" id="qf-container">
+        <div class="qf" data-text="everything sucks">everything sucks</div>
+        <div class="qf" data-text="i feel awful">i feel awful</div>
+        <div class="qf" data-text="can't focus on anything">can't focus</div>
+        <div class="qf" data-text="i want to leave">want to leave</div>
+        <div class="qf" data-text="angry at everyone">angry at everyone</div>
+        <div class="qf" data-text="i feel like crying">feel like crying</div>
+        <div class="qf" data-text="i feel hostile">hostile</div>
+        <div class="qf" data-text="anxious and restless">anxious</div>
+        <div class="qf" data-text="numb and empty">numb</div>
+      </div>
+      <div class="qf-hint">tap multiple — they add to your input. or just type.</div>
+      <div class="concept-note">
+        <strong>System premise:</strong> What arrives as one feeling is often several signals compressed into one readout. This console helps separate them.
+      </div>
+      <button class="btn-run" id="btn-go" disabled>▸ begin diagnostic</button>
+    </div>
+  </div>
+
+  <!-- SCREEN 2 -->
+  <div class="screen" id="s-triage">
+    <div class="concept-note">
+      <strong>System state:</strong> Your brain is constantly tracking load, reserves, and expected inputs. Sleep, food, movement — these aren't lifestyle checkboxes. They're source signals, and they shape the readout you get later.
+    </div>
+
+    <div class="triage-group" data-mode="single">
+      <div class="triage-header">
+        <div class="triage-label">interoception::sleep</div>
+        <div class="triage-hint">body signal #1</div>
+      </div>
+      <div class="triage-options">
+        <div class="tc" data-c="sleep" data-v="good" data-s="on">rested</div>
+        <div class="tc" data-c="sleep" data-v="meh" data-s="warn">so-so</div>
+        <div class="tc" data-c="sleep" data-v="bad" data-s="alert">poor sleep</div>
+        <div class="tc" data-c="sleep" data-v="none" data-s="alert">barely slept</div>
+      </div>
+    </div>
+
+    <div class="triage-group" data-mode="single">
+      <div class="triage-header">
+        <div class="triage-label">interoception::movement</div>
+        <div class="triage-hint">body signal #2</div>
+      </div>
+      <div class="triage-options">
+        <div class="tc" data-c="move" data-v="yes" data-s="on">exercised</div>
+        <div class="tc" data-c="move" data-v="light" data-s="on">walked a bit</div>
+        <div class="tc" data-c="move" data-v="no" data-s="warn">nothing yet</div>
+        <div class="tc" data-c="move" data-v="skipped" data-s="alert">skipped routine</div>
+      </div>
+    </div>
+
+    <div class="triage-group" data-mode="multi">
+      <div class="triage-header">
+        <div class="triage-label">interoception::fuel</div>
+        <div class="triage-hint">body signal #3 · select all that apply</div>
+      </div>
+      <div class="triage-options">
+        <div class="tc" data-c="fuel" data-v="good" data-s="on">ate real food</div>
+        <div class="tc" data-c="fuel" data-v="caffeine" data-s="warn">caffeine</div>
+        <div class="tc" data-c="fuel" data-v="snacking" data-s="alert">stress snacking</div>
+        <div class="tc" data-c="fuel" data-v="empty" data-s="alert">haven't eaten</div>
+      </div>
+    </div>
+
+    <div class="triage-group" data-mode="multi">
+      <div class="triage-header">
+        <div class="triage-label">prediction::context</div>
+        <div class="triage-hint">what your brain expected vs. got · select all that apply</div>
+      </div>
+      <div class="triage-options">
+        <div class="tc" data-c="ctx" data-v="routine" data-s="on">normal day</div>
+        <div class="tc" data-c="ctx" data-v="disrupted" data-s="warn">routine broken</div>
+        <div class="tc" data-c="ctx" data-v="forced" data-s="alert">doing something I didn't choose</div>
+        <div class="tc" data-c="ctx" data-v="dread" data-s="alert">dreading something ahead</div>
+      </div>
+    </div>
+
+    <div class="triage-group" data-mode="single">
+      <div class="triage-header">
+        <div class="triage-label">environment::social</div>
+        <div class="triage-hint">external inputs</div>
+      </div>
+      <div class="triage-options">
+        <div class="tc" data-c="social" data-v="fine" data-s="on">people are fine</div>
+        <div class="tc" data-c="social" data-v="annoying" data-s="warn">everyone's annoying</div>
+        <div class="tc" data-c="social" data-v="one" data-s="alert">one specific person</div>
+        <div class="tc" data-c="social" data-v="alone" data-s="warn">isolated / alone</div>
+      </div>
+    </div>
+
+    <div class="triage-footer">
+      <div class="skip-note">tap what resonates. skip the rest. no wrong answers.</div>
+      <button class="btn-run" id="btn-decompile">▸ decompile</button>
+    </div>
+  </div>
+
+  <!-- SCREEN 3 -->
+  <div class="screen" id="s-loading">
+    <div class="loading-screen">
+      <div class="pulse-ring"></div>
+      <div class="loading-log" id="log-container"></div>
+    </div>
+  </div>
+
+  <!-- SCREEN 4 -->
+  <div class="screen" id="s-results">
+    <div class="results-area" id="results"></div>
+  </div>
+
+</div>
+
+<script>
+  // ===== STATE =====
+  var raw = '';
+  var tri = {};
+  var activeQFs = new Set();
+
+  // ===== DOM =====
+  var ta = document.getElementById('raw-input');
+  var btnGo = document.getElementById('btn-go');
+  var btnDecompile = document.getElementById('btn-decompile');
+
+  // ===== SCREEN NAV =====
+  function showScreen(id) {
+    var screens = document.querySelectorAll('.screen');
+    for (var i = 0; i < screens.length; i++) screens[i].classList.remove('active');
+    document.getElementById(id).classList.add('active');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  // ===== TEXTAREA =====
+  ta.addEventListener('input', function() {
+    btnGo.disabled = ta.value.trim().length < 3;
+    ta.style.height = 'auto';
+    ta.style.height = ta.scrollHeight + 'px';
+  });
+
+  // ===== QUICK FILLS (multi-select, additive to textarea) =====
+  var qfChips = document.querySelectorAll('.qf');
+  for (var i = 0; i < qfChips.length; i++) {
+    (function(chip) {
+      chip.addEventListener('click', function() {
+        var text = chip.getAttribute('data-text');
+        if (activeQFs.has(text)) {
+          // Remove
+          activeQFs.delete(text);
+          chip.classList.remove('active');
+        } else {
+          // Add
+          activeQFs.add(text);
+          chip.classList.add('active');
+        }
+        // Rebuild textarea from active QFs + any manual text
+        rebuildInput();
+      });
+    })(qfChips[i]);
+  }
+
+  function rebuildInput() {
+    // Get any manually typed text that isn't a QF phrase
+    var manual = ta.value;
+    // Remove all known QF phrases
+    qfChips.forEach(function(chip) {
+      var t = chip.getAttribute('data-text');
+      manual = manual.replace(t, '');
+    });
+    manual = manual.replace(/,\s*,/g, ',').replace(/^[\s,]+|[\s,]+$/g, '').trim();
+
+    var parts = [];
+    if (manual) parts.push(manual);
+    activeQFs.forEach(function(t) { parts.push(t); });
+
+    ta.value = parts.join(', ');
+    btnGo.disabled = ta.value.trim().length < 3;
+    ta.style.height = 'auto';
+    ta.style.height = ta.scrollHeight + 'px';
+  }
+
+  // ===== GO TO TRIAGE =====
+  btnGo.addEventListener('click', function() {
+    if (btnGo.disabled) return;
+    raw = ta.value.trim();
+    showScreen('s-triage');
+  });
+
+  // ===== TRIAGE CHIPS =====
+  var tcChips = document.querySelectorAll('.tc');
+  for (var i = 0; i < tcChips.length; i++) {
+    (function(chip) {
+      chip.addEventListener('click', function() {
+        var cat = chip.getAttribute('data-c');
+        var val = chip.getAttribute('data-v');
+        var style = chip.getAttribute('data-s'); // 'on', 'warn', 'alert'
+        var selClass = 'sel-' + style;
+
+        // Is this chip already selected?
+        var isSelected = chip.classList.contains('sel-on') ||
+                         chip.classList.contains('sel-warn') ||
+                         chip.classList.contains('sel-alert');
+
+        // Get mode from parent group
+        var group = chip.closest('.triage-group');
+        var mode = group ? group.getAttribute('data-mode') : 'single';
+
+        if (mode === 'multi') {
+          // Toggle this chip
+          if (isSelected) {
+            chip.classList.remove('sel-on', 'sel-warn', 'sel-alert');
+            if (Array.isArray(tri[cat])) {
+              tri[cat] = tri[cat].filter(function(x) { return x !== val; });
+              if (tri[cat].length === 0) delete tri[cat];
+            }
+          } else {
+            chip.classList.add(selClass);
+            if (!Array.isArray(tri[cat])) tri[cat] = [];
+            tri[cat].push(val);
+          }
+        } else {
+          // Single select: deselect all siblings
+          var siblings = group.querySelectorAll('.tc');
+          for (var j = 0; j < siblings.length; j++) {
+            siblings[j].classList.remove('sel-on', 'sel-warn', 'sel-alert');
+          }
+          // Select this one (unless it was already selected = deselect)
+          if (!isSelected) {
+            chip.classList.add(selClass);
+            tri[cat] = val;
+          } else {
+            delete tri[cat];
+          }
+        }
+      });
+    })(tcChips[i]);
+  }
+
+  // ===== DECOMPILE =====
+  btnDecompile.addEventListener('click', function() {
+    showScreen('s-loading');
+    var logEl = document.getElementById('log-container');
+    logEl.innerHTML = '';
+
+    var logs = [
+      '> reading raw state dump...',
+      '> scanning interoceptive signals...',
+      '> checking prediction errors...',
+      '> mapping environmental inputs...',
+      '> separating compiled emotion into components...',
+      '> generating decompiled report... <span class="ok">[done]</span>'
+    ];
+
+    for (var i = 0; i < logs.length; i++) {
+      (function(msg, idx) {
+        setTimeout(function() {
+          var line = document.createElement('div');
+          line.className = 'log-line vis';
+          line.innerHTML = msg;
+          logEl.appendChild(line);
+        }, idx * 450);
+      })(logs[i], i);
+    }
+
+    setTimeout(function() {
+      buildReport();
+      showScreen('s-results');
+    }, logs.length * 450 + 400);
+  });
+
+  // ===== HELPERS =====
+  function has(cat, val) {
+    var d = tri[cat];
+    if (!d) return false;
+    if (Array.isArray(d)) return d.indexOf(val) !== -1;
+    return d === val;
+  }
+
+  function esc(s) {
+    var d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+  }
+
+  // ===== BUILD REPORT =====
+  function buildReport() {
+    var comps = analyze();
+    var bodyCount = 0;
+    for (var i = 0; i < comps.length; i++) { if (comps[i].layer === 'interoception') bodyCount++; }
+    var total = comps.length;
+
+    var h = '';
+
+    h += '<div class="result-block">';
+    h += '<div class="block-header bh-red">compiled output</div>';
+    h += '<div class="compiled-box">';
+    h += '<div class="compiled-raw">"' + esc(raw) + '"</div>';
+    h += '<div class="compiled-meta">↑ this is the compiled readout. below are the source signals it was assembled from.</div>';
+    h += '</div></div>';
+    h += '<div class="arrow-sep">· · ·  decompiled  · · ·</div>';
+
+    h += '<div class="result-block"><div class="block-header bh-green">identified signals (' + total + ')</div>';
+    for (var i = 0; i < comps.length; i++) {
+      var c = comps[i];
+      h += '<div class="comp-card ' + c.severity + '">';
+      h += '<div class="comp-top"><div class="comp-type ' + c.severity + '">' + c.layer + '::' + c.name + '</div>';
+      h += '<div class="comp-impact">' + c.impact + '</div></div>';
+      h += '<div class="comp-desc">' + c.desc + '</div>';
+      if (c.theory) h += '<div class="comp-theory">↳ ' + c.theory + '</div>';
+      h += '</div>';
+    }
+    h += '</div>';
+
+    h += '<div class="result-block"><div class="block-header bh-cyan">reframed</div>';
+    h += '<div class="reframe-box"><div class="reframe-text">' + buildReframe(bodyCount, total) + '</div></div></div>';
+
+    h += '<div class="result-block"><div class="block-header bh-amber">one small action</div>';
+    h += '<div class="action-box"><div class="action-text">' + buildAction() + '</div></div></div>';
+
+    h += '<div class="system-note"><div class="system-note-title">system note</div>';
+    h += '<div class="system-note-body">What feels like one overwhelming emotion is often several source signals merged into one readout: system state, expectation mismatch, social friction, overload. This console slows that compilation down and traces the inputs. The goal is not to prove the feeling false. It is to make the state easier to work with.</div></div>';
+
+    h += '<div class="restart-area"><button class="btn-secondary" id="btn-restart">↺ run again</button></div>';
+
+    document.getElementById('results').innerHTML = h;
+
+    document.getElementById('btn-restart').addEventListener('click', function() {
+      raw = '';
+      tri = {};
+      activeQFs.clear();
+      ta.value = '';
+      btnGo.disabled = true;
+      var allQf = document.querySelectorAll('.qf');
+      for (var i = 0; i < allQf.length; i++) allQf[i].classList.remove('active');
+      var allTc = document.querySelectorAll('.tc');
+      for (var i = 0; i < allTc.length; i++) allTc[i].classList.remove('sel-on', 'sel-warn', 'sel-alert');
+      document.getElementById('results').innerHTML = '';
+      showScreen('s-input');
+    });
+  }
+
+  // ===== ANALYZE =====
+  function analyze() {
+    var c = [];
+    var inp = raw.toLowerCase();
+
+    // SLEEP
+    if (has('sleep','bad') || has('sleep','none')) {
+      c.push({ layer:'interoception', name:'sleep_deficit', severity:'high', impact:'high',
+        desc: has('sleep','none')
+          ? 'Severely under-slept. Your brain\'s prefrontal cortex — the part that regulates emotions — is running at reduced capacity. Everything feels harder because it literally is.'
+          : 'Poor sleep has raised system load and lowered your margin for discomfort, frustration, and overwhelm.',
+        theory: 'Sleep is a primary source signal. When it drops, system load rises and neutral input is easier to read as threat.'
+      });
+    } else if (has('sleep','meh')) {
+      c.push({ layer:'interoception', name:'sleep_partial', severity:'mid', impact:'moderate',
+        desc: 'Not wrecked, but not restored. You\'re operating without your full buffer — less tolerance, less flexibility.',
+        theory: 'Even moderate sleep debt raises system load and biases the readout negative.'
+      });
+    }
+
+    // MOVEMENT
+    if (has('move','skipped')) {
+      c.push({ layer:'interoception', name:'movement_expected', severity:'high', impact:'high',
+        desc: 'You skipped a routine your body was expecting. This isn\'t just "didn\'t exercise" — your nervous system predicted the regulation and didn\'t receive it. That prediction error is itself a stressor.',
+        theory: 'Your brain tracks expected regulating inputs. When one fails to arrive, the miss itself can register as agitation.'
+      });
+    } else if (has('move','no')) {
+      c.push({ layer:'interoception', name:'movement_absent', severity:'mid', impact:'moderate',
+        desc: 'No physical discharge yet. Stress hormones are circulating without an outlet. Your body is chemically primed for fight-or-flight with nowhere to direct it.',
+        theory: 'Movement regulates the autonomic nervous system. Without it, arousal stays elevated.'
+      });
+    }
+
+    // FUEL (multi)
+    if (has('fuel','empty')) {
+      c.push({ layer:'interoception', name:'fuel_depleted', severity:'high', impact:'high',
+        desc: 'Running on empty. Your brain consumes ~20% of your energy but is ~2% of your body mass. It does not function well unfueled. Emotional regulation is one of the first things to degrade.',
+        theory: 'Low fuel narrows interpretation. The system defaults to rougher, harsher reads because they cost less.'
+      });
+    }
+    if (has('fuel','snacking')) {
+      c.push({ layer:'interoception', name:'fuel_dysregulated', severity:'mid', impact:'moderate',
+        desc: 'Stress snacking creates a feedback loop: unease → snack → brief relief → guilt or discomfort → more unease. The snacking isn\'t the problem — it\'s a symptom of an unregulated state trying to self-correct.',
+        theory: 'The system can mislabel agitation as hunger. The behavior is often an attempt to patch the state, not the root problem.'
+      });
+    }
+    if (has('fuel','caffeine')) {
+      var alsoEmpty = has('fuel','empty');
+      c.push({ layer:'interoception', name:'fuel_stimulant', severity: alsoEmpty ? 'high' : 'mid', impact: alsoEmpty ? 'amplifier' : 'moderate',
+        desc: alsoEmpty
+          ? 'Caffeine on a completely empty system. You\'ve blocked your fatigue signals while running on zero fuel. Your nervous system is simultaneously wired and depleted — that combination produces intense irritability and anxiety.'
+          : 'Caffeine amplifies sympathetic nervous system activation. You\'re chemically primed to feel edgier and more reactive than the situation warrants.',
+        theory: 'Caffeine doesn\'t create energy — it blocks the signal telling you you\'re tired. The debt remains, and the arousal stacks.'
+      });
+    }
+
+    // CONTEXT (multi)
+    if (has('ctx','disrupted')) {
+      c.push({ layer:'prediction', name:'routine_broken', severity:'mid', impact:'moderate',
+        desc: 'Your routine broke. Routines are not just habits — they are stable operating patterns. When the structure changes, your brain has to rebuild its expected map in real time, which costs energy and produces more friction.',
+        theory: 'Routine lowers prediction cost. A broken routine forces your brain to rebuild the map in real time, which often feels "off."'
+      });
+    }
+    if (has('ctx','forced')) {
+      c.push({ layer:'prediction', name:'autonomy_loss', severity:'high', impact:'high',
+        desc: 'You\'re doing something you didn\'t choose. Loss of autonomy is one of the most reliable triggers for negative affect. Your brain is treating the lack of control as a threat signal.',
+        theory: 'Perceived control is one of the strongest modulators of stress response. Remove it, and the same situation feels dramatically worse.'
+      });
+    }
+    if (has('ctx','dread')) {
+      c.push({ layer:'prediction', name:'anticipatory_threat', severity:'mid', impact:'ongoing',
+        desc: 'You\'re dreading something ahead. Your forecast engine is already spending energy on that future event — running scenarios, preparing for threat. That drain is happening now, on top of everything else.',
+        theory: 'Your system spends energy on anticipated threats almost like current ones. Dread is costly before anything happens.'
+      });
+    }
+
+    // SOCIAL (single)
+    if (has('social','annoying')) {
+      c.push({ layer:'environment', name:'social_irritation', severity:'mid', impact:'signal',
+        desc: 'When everyone seems annoying, that\'s almost always projection from an internal state. The irritation already existed — other people are just giving it a target. This is useful information: the problem isn\'t them.',
+        theory: 'An under-resourced brain produces harsher social readings. Sometimes the people are the trigger. Sometimes they are just where the state lands.'
+      });
+    } else if (has('social','one')) {
+      c.push({ layer:'environment', name:'social_specific', severity:'mid', impact:'possibly real',
+        desc: 'There\'s someone specific. That might be a genuine interpersonal issue, but test it: would this person bother you as much on a day when your system state was steadier? If the answer is "less," then your current load is amplifying a real signal.',
+        theory: 'Separate the signal (they may be doing something worth addressing) from the amplifier (your current state making it feel worse).'
+      });
+    } else if (has('social','alone')) {
+      c.push({ layer:'environment', name:'social_isolation', severity:'mid', impact:'moderate',
+        desc: 'Alone while dysregulated. Social co-regulation — even passive proximity to others — helps stabilize the nervous system. Without it, negative states can loop without a circuit breaker.',
+        theory: 'Human nervous systems are designed to regulate each other. Isolation removes that external stabilizer.'
+      });
+    }
+
+    // RAW INPUT KEYWORDS
+    var hasHostile = inp.indexOf('hostile') !== -1 || inp.indexOf('angry') !== -1 || inp.indexOf('rage') !== -1 || inp.indexOf('furious') !== -1;
+    if (hasHostile && !c.find(function(x){ return x.name === 'social_irritation'; })) {
+      c.push({ layer:'affect', name:'hostility', severity:'high', impact:'surface',
+        desc: 'Hostility is high-arousal negative affect with a direction. Your brain has decided something or someone is a threat. But ask: is this a real boundary violation, or is your depleted system labeling a neutral situation as hostile?',
+        theory: 'Granularity matters. "Hostile," "frustrated," and "overwhelmed" can feel adjacent while pointing to different causes and different fixes.'
+      });
+    }
+    if (inp.indexOf('crying') !== -1 || inp.indexOf('cry') !== -1 || inp.indexOf('tears') !== -1) {
+      c.push({ layer:'affect', name:'overwhelm', severity:'mid', impact:'discharge signal',
+        desc: 'The urge to cry is a pressure-release mechanism. Your system is saying "I\'m past capacity and need to discharge." It\'s not weakness or overreaction — it\'s your body trying to recalibrate.',
+        theory: 'Crying activates the parasympathetic nervous system. Your body is trying to shift from threat-mode to recovery.'
+      });
+    }
+    if (inp.indexOf('focus') !== -1 || inp.indexOf('concentrate') !== -1 || inp.indexOf('distract') !== -1) {
+      c.push({ layer:'cognitive', name:'attention_fragmented', severity:'mid', impact:'downstream',
+        desc: 'Your brain is splitting resources between emotional processing and task demands. It doesn\'t have bandwidth for both. The focus issue isn\'t laziness — it\'s resource allocation.',
+        theory: 'Attention is finite. When system load is high, survival-relevant processing tends to outrank task processing.'
+      });
+    }
+    if (inp.indexOf('leave') !== -1 || inp.indexOf('don\'t want to be') !== -1 || inp.indexOf('dont want to be') !== -1 || inp.indexOf('get out') !== -1 || inp.indexOf('escape') !== -1) {
+      c.push({ layer:'impulse', name:'flight_response', severity:'mid', impact:'state-driven',
+        desc: '"I want to leave" is your nervous system\'s flight response surfacing as a thought. It\'s not necessarily telling you to actually leave — it\'s telling you your system is in threat mode and wants to reduce input.',
+        theory: 'The urge to flee is an action signal, not necessarily an instruction. Naming it as state can reduce its authority.'
+      });
+    }
+    if (inp.indexOf('anxious') !== -1 || inp.indexOf('anxiety') !== -1 || inp.indexOf('restless') !== -1 || inp.indexOf('uneasy') !== -1) {
+      c.push({ layer:'affect', name:'anxiety', severity:'mid', impact:'arousal signal',
+        desc: 'Anxiety is your forecast engine running hot — generating worst-case scenarios because it lacks enough information, stability, or capacity to produce a cleaner read. Uncertainty is the fuel.',
+        theory: 'Anxiety often starts as arousal plus uncertainty, then gets explained as danger.'
+      });
+    }
+    if (inp.indexOf('numb') !== -1 || inp.indexOf('empty') !== -1 || inp.indexOf('nothing') !== -1 || inp.indexOf('flat') !== -1) {
+      c.push({ layer:'affect', name:'shutdown', severity:'mid', impact:'protection',
+        desc: 'Numbness isn\'t the absence of feeling — it\'s an active response. Your system has determined that feeling is too expensive right now, so it\'s throttling emotional output. This is protection, not failure.',
+        theory: 'When the system is badly depleted, flattening or numbing can be a conservation move, not a failure.'
+      });
+    }
+
+    if (c.length === 0) {
+      c.push({ layer:'state', name:'undifferentiated', severity:'mid', impact:'starting point',
+        desc: 'The signal is noisy and not yet decomposable into clear components. That\'s actually normal — sometimes feelings compile before any clear source is identifiable. Clarity sometimes comes later, or from a different angle.',
+        theory: 'Sometimes the state is real before the label gets precise. A coarse readout is still a real readout.'
+      });
+    }
+
+    return c;
+  }
+
+  function buildReframe(bodyCount, total) {
+    if (bodyCount >= 2 && total >= 3) {
+      return 'Your brain compiled <strong>' + total + ' separate signals</strong> into the single feeling of <em>"' + esc(raw.substring(0,70)) + '"</em>. At least ' + bodyCount + ' of those come from <strong>system state</strong> — not the situation, not the people, not your character. This is a <strong>state problem</strong> being experienced as a life problem. The readout is real, but it is not the only possible interpretation. Change the inputs, and the readout often changes.';
+    }
+    if (bodyCount >= 2) {
+      return 'Most of what you\'re feeling traces to <strong>system state</strong> — sleep, fuel, movement, load. Your brain is compiling a harsh readout from depleted hardware. The sensations are real. But the current interpretation is not the only available one.';
+    }
+    if (total >= 3) {
+      return 'There are <strong>' + total + ' distinct signals</strong> stacking up right now. Your brain compressed them into one summary readout. But the fix for each component is different. Seeing them separately is the decompilation.';
+    }
+    return 'What feels like one emotion is often <strong>a compiled readout from multiple inputs</strong>. Your brain assembled it quickly, presented it as a fact ("I feel awful"), and moved on. But that compiled output can be traced back to its source signals. Not all of them need the same fix.';
+  }
+
+  function buildAction() {
+    if (has('fuel','empty') || (has('fuel','caffeine') && !has('fuel','good'))) {
+      return '<strong>Eat something real in the next 15 minutes.</strong> Not a snack — something with actual substance. Your system is running on fumes, which makes the readout harsher and less stable. Fuel changes the operating conditions. This is the single highest-leverage action available to you right now.';
+    }
+    if (has('move','skipped') || has('move','no')) {
+      return '<strong>Walk for 5 minutes. Outside if possible.</strong> Not as exercise replacement — as a nervous system reset. Movement shifts your autonomic state from sympathetic (fight/flight) toward parasympathetic (rest/recover). You don\'t need to fix the day. You need to interrupt the loop your system is running.';
+    }
+    if (has('sleep','bad') || has('sleep','none')) {
+      return '<strong>Consciously lower your bar for the next few hours.</strong> You\'re operating in a depleted system state, so the readout will skew harsher and less flexible. You\'re not underperforming. You\'re performing on a genuine deficit. Give yourself permission to run at 60%.';
+    }
+    if (has('ctx','forced')) {
+      return '<strong>Find one micro-choice in your current situation.</strong> Even small: where you sit, what you listen to, when you take a break. Perceived autonomy — even tiny amounts — significantly reduces the stress response. You can\'t change the macro situation, but one small choice breaks the "trapped" signal.';
+    }
+    if (has('social','annoying')) {
+      return '<strong>Create a micro-boundary.</strong> Headphones (even silent), a different seat, a 2-minute solo walk. When everyone seems irritating, you don\'t need social solutions — you need less social input while your system recalibrates.';
+    }
+    return '<strong>Drink water. Take 5 slow breaths.</strong> Not because it\'s a cure — because it interrupts the loop. Your system is stuck in a negative readout cycle. Any sensory shift (cold water, breath focus, temperature change) forces a brief recalculation. That interruption is worth more than it sounds.';
+  }
+</script>
+</body>
+</html>
