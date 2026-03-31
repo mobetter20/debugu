@@ -132,9 +132,8 @@
     padding: 5px 10px; background: transparent; border: 1px solid var(--border);
     border-radius: 2px; color: var(--text-dim); cursor: pointer;
     transition: all 0.2s; letter-spacing: 0.3px; user-select: none;
-    -webkit-tap-highlight-color: transparent;
+    -webkit-tap-highlight-color: transparent; touch-action: manipulation;
   }
-  .qf:hover { border-color: var(--border-active); color: var(--phosphor); background: var(--phosphor-dim); }
   .qf.active {
     border-color: var(--phosphor-mid); color: var(--phosphor);
     background: var(--phosphor-dim); box-shadow: 0 0 6px var(--phosphor-dim);
@@ -150,12 +149,7 @@
     width: 100%; padding: 14px; background: transparent; color: var(--phosphor);
     font-family: 'IBM Plex Mono', monospace; font-size: 13px; font-weight: 500;
     letter-spacing: 1px; border: 1px solid var(--phosphor-mid); border-radius: 2px;
-    cursor: pointer; transition: all 0.25s; text-transform: uppercase;
-  }
-  .btn-run:hover:not(:disabled) {
-    background: var(--phosphor-dim);
-    box-shadow: 0 0 20px var(--phosphor-dim), inset 0 0 20px var(--phosphor-dim);
-    border-color: var(--phosphor-glow);
+    cursor: pointer; transition: all 0.25s; text-transform: uppercase; touch-action: manipulation;
   }
   .btn-run:disabled { opacity: 0.2; cursor: not-allowed; }
 
@@ -163,9 +157,8 @@
     display: inline-flex; align-items: center; gap: 8px;
     padding: 10px 18px; background: transparent; color: var(--text-dim);
     font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.5px;
-    border: 1px solid var(--border); border-radius: 2px; cursor: pointer; transition: all 0.2s;
+    border: 1px solid var(--border); border-radius: 2px; cursor: pointer; transition: all 0.2s; touch-action: manipulation;
   }
-  .btn-secondary:hover { color: var(--text); border-color: var(--border-active); }
 
   /* Triage */
   .triage-group { margin-bottom: 26px; }
@@ -178,12 +171,22 @@
     font-family: 'IBM Plex Mono', monospace; font-size: 12px; padding: 8px 14px;
     background: var(--bg-panel); border: 1px solid var(--border); border-radius: 2px;
     color: var(--text); cursor: pointer; transition: all 0.2s; user-select: none;
-    -webkit-tap-highlight-color: transparent; letter-spacing: 0.3px;
+    -webkit-tap-highlight-color: transparent; letter-spacing: 0.3px; touch-action: manipulation;
   }
-  .tc:hover { border-color: var(--border-active); background: var(--phosphor-dim); }
   .tc.sel-on { border-color: var(--phosphor-mid); color: var(--phosphor); background: var(--phosphor-dim); box-shadow: 0 0 8px var(--phosphor-dim); }
   .tc.sel-warn { border-color: var(--amber-mid); color: var(--amber); background: var(--amber-dim); box-shadow: 0 0 8px var(--amber-dim); }
   .tc.sel-alert { border-color: var(--red-mid); color: var(--red-signal); background: var(--red-dim); box-shadow: 0 0 8px var(--red-dim); }
+
+  @media (hover: hover) and (pointer: fine) {
+    .qf:hover { border-color: var(--border-active); color: var(--phosphor); background: var(--phosphor-dim); }
+    .btn-run:hover:not(:disabled) {
+      background: var(--phosphor-dim);
+      box-shadow: 0 0 20px var(--phosphor-dim), inset 0 0 20px var(--phosphor-dim);
+      border-color: var(--phosphor-glow);
+    }
+    .btn-secondary:hover { color: var(--text); border-color: var(--border-active); }
+    .tc:hover { border-color: var(--border-active); background: var(--phosphor-dim); }
+  }
 
   .triage-footer { margin-top: 8px; }
   .skip-note { font-family: 'Crimson Pro', serif; font-size: 12px; font-style: italic; color: var(--text-dim); text-align: center; margin-bottom: 14px; }
